@@ -1,0 +1,43 @@
+/*
+ * FILE CẤU HÌNH MẪU
+ * 
+ * Để sử dụng:
+ * 1. Copy file này thành config.h
+ * 2. Điền thông tin WiFi và MQTT của bạn
+ * 3. Trong file .ino chính, thêm dòng: #include "config.h"
+ * 4. Xóa hoặc comment các dòng const char* ssid, password, mqtt_server trong file .ino
+ */
+
+#ifndef CONFIG_H
+#define CONFIG_H
+
+// ============================================
+// CẤU HÌNH WIFI
+// ============================================
+#define WIFI_SSID "TEN_WIFI_CUA_BAN"           // Tên WiFi của bạn
+#define WIFI_PASSWORD "MAT_KHAU_CUA_BAN"       // Mật khẩu WiFi
+
+// ============================================
+// CẤU HÌNH MQTT
+// ============================================
+#define MQTT_SERVER "broker.hivemq.com"        // Địa chỉ MQTT Broker
+#define MQTT_PORT 1883                         // Port MQTT (thường là 1883)
+#define MQTT_TOPIC_COMMAND "maybom/command"    // Topic nhận lệnh từ điện thoại
+#define MQTT_TOPIC_STATUS "maybom/status"       // Topic gửi trạng thái
+#define MQTT_CLIENT_ID "ESP32_MayBom_001"      // ID duy nhất cho ESP32 này
+
+// ============================================
+// CẤU HÌNH CẢM BIẾN (Tùy chọn)
+// ============================================
+#define DISTANCE_THRESHOLD 20                  // Ngưỡng khoảng cách (cm)
+#define DURATION_TO_TRIGGER_MS 2000           // Thời gian phát hiện liên tục (ms)
+
+// ============================================
+// CẤU HÌNH NTP (Tùy chọn)
+// ============================================
+#define NTP_SERVER "pool.ntp.org"              // NTP Server
+#define GMT_OFFSET_SEC 7 * 3600               // GMT+7 (Giờ Việt Nam)
+#define DAYLIGHT_OFFSET_SEC 0
+
+#endif
+
