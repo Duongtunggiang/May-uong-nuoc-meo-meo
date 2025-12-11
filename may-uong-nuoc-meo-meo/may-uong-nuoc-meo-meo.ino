@@ -17,21 +17,22 @@ const char* mqtt_client_id = "ESP32_MayBom_001";
 // ============================================
 // CẤU HÌNH GPIO
 // ============================================
+// QUAN TRỌNG: Tránh dùng Strapping Pins (GPIO 2, 3, 8, 9) để tránh lỗi boot khi dùng nguồn ngoài
 const int MOTOR_PIN = 4;  // GPIO 4 - Điều khiển Motor (ENB)
-const int TRIG_PIN = 10;  // GPIO 10 - Cảm biến siêu âm Trig
-const int ECHO_PIN = 9;   // GPIO 9 - Cảm biến siêu âm Echo
+const int TRIG_PIN = 10;  // GPIO 10 - Cảm biến siêu âm Trig (an toàn)
+const int ECHO_PIN = 1;   // GPIO 1 - Cảm biến siêu âm Echo (đổi từ GPIO 9 - strapping pin)
 
 // IN3 & IN4 - Điều khiển hướng Motor (Phương án A)
-// ĐÃ THAY ĐỔI: Từ GPIO 2,3 (JTAG - có thể xung đột) sang GPIO 5,6 (an toàn hơn)
-const int IN_PIN_3 = 5;   // GPIO 5 - IN3 (thay vì GPIO 3)
-const int IN_PIN_4 = 6;   // GPIO 6 - IN4 (thay vì GPIO 2)
-const int LED = 8;
+// ĐÃ THAY ĐỔI: Từ GPIO 2,3 (JTAG/Strapping - có thể xung đột) sang GPIO 5,6 (an toàn hơn)
+const int IN_PIN_3 = 5;   // GPIO 5 - IN3 (an toàn)
+const int IN_PIN_4 = 6;   // GPIO 6 - IN4 (an toàn)
+const int LED = 7;        // GPIO 7 - LED (đổi từ GPIO 8 - strapping pin)
 
 // ============================================
 // CẤU HÌNH CẢM BIẾN
 // ============================================
 const int DISTANCE_THRESHOLD = 20;
-const long DURATION_TO_TRIGGER_MS = 2000;
+const long DURATION_TO_TRIGGER_MS = 200;
 
 // ============================================
 // CẤU HÌNH NTP (LẤY GIỜ)
@@ -57,7 +58,7 @@ unsigned long motorEndTime_ms = 0;
 
 // Quản lý cảm biến siêu âm
 unsigned long lastDistanceCheckTime_ms = 0;
-const long DISTANCE_CHECK_INTERVAL_MS = 500;
+const long DISTANCE_CHECK_INTERVAL_MS = 100;
 unsigned long distanceStartTime_ms = 0;
 
 // Quản lý reconnect
@@ -249,11 +250,15 @@ void connectWiFi() {
   Serial.print(ssid);
   Serial.print(" ...");
 
+  // Reset WiFi module để đảm bảo khởi động sạch khi dùng nguồn ngoài
+  WiFi.disconnect(true);
+  delay(100);
   WiFi.mode(WIFI_STA);
+  delay(100);
   WiFi.begin(ssid, password);
 
   int attempts = 0;
-  while (WiFi.status() != WL_CONNECTED && attempts < 20) {
+  while (WiFi.status() != WL_CONNECTED && attempts < 30) {  // Tăng số lần thử từ 20 lên 30
     delay(500);
     Serial.print(".");
     attempts++;
@@ -419,29 +424,54 @@ bool connectMQTT() {
 // SETUP
 // ============================================
 void setup() {
+  // ============================================
+  // KHỞI TẠO GPIO - ĐÃ ĐỔI SANG CHÂN AN TOÀN
+  // ============================================
+  // ĐÃ ĐỔI: GPIO 8, 9 (strapping pins) → GPIO 7, 1 (an toàn)
+  // Điều này tránh lỗi boot khi dùng nguồn ngoài
+  
+  // Set LED (GPIO 7) về OUTPUT LOW NGAY LẬP TỨC
+  pinMode(LED, OUTPUT);
+  digitalWrite(LED, LOW);
+  delay(10);
+  
+  // Set ECHO_PIN (GPIO 1) về INPUT_PULLDOWN
+  pinMode(ECHO_PIN, INPUT_PULLDOWN);
+  delay(10);
+  
+  // Set TRIG_PIN (GPIO 10) về OUTPUT LOW
+  pinMode(TRIG_PIN, OUTPUT);
+  digitalWrite(TRIG_PIN, LOW);
+  delay(10);
+  
+  // KHỞI TẠO SERIAL SAU KHI ĐÃ SET CÁC STRAPPING PINS
   Serial.begin(115200);
-  delay(1000); 
-
-  // ... (setup code cũ) ...
-  Serial.println("\n========================================");
+  delay(2000);  // Delay để đợi nguồn ổn định khi dùng nguồn ngoài
+  
+  // BẮT ĐẦU SERIAL OUTPUT
+  Serial.println("\n\n========================================");
   Serial.println("HE THONG DIEU KHIEN MAY BOM NUOC");
   Serial.println("ESP32-C3 Super Mini");
   Serial.println("========================================\n");
   
   // Thiết lập các chân Motor cố định cho Phương án A
   pinMode(MOTOR_PIN, OUTPUT);
+  digitalWrite(MOTOR_PIN, LOW);
   pinMode(IN_PIN_3, OUTPUT); // IN3 - GPIO 5 (đã thay đổi từ GPIO 3 để tránh xung đột JTAG)
   pinMode(IN_PIN_4, OUTPUT); // IN4 - GPIO 6 (đã thay đổi từ GPIO 2 để tránh xung đột JTAG)
   digitalWrite(IN_PIN_3, HIGH); // IN3 = HIGH
   digitalWrite(IN_PIN_4, LOW);  // IN4 = LOW
   Serial.println("✓ Da thiet lap IN3 (GPIO 5) va IN4 (GPIO 6) cho Motor Control."); 
 
-  pinMode(TRIG_PIN, OUTPUT);
-  pinMode(ECHO_PIN, INPUT);
-  
-  // Thiết lập LED (GPIO 8) - Sáng khi motor chạy
-  pinMode(LED, OUTPUT);
-  digitalWrite(LED, LOW); // Tắt LED khi khởi động
+  // TRIG và ECHO đã được thiết lập ở trên
+  Serial.print("✓ Cam bien sieu am: TRIG (GPIO ");
+  Serial.print(TRIG_PIN);
+  Serial.print("), ECHO (GPIO ");
+  Serial.print(ECHO_PIN);
+  Serial.println(") da duoc khoi tao.");
+  Serial.print("✓ LED (GPIO ");
+  Serial.print(LED);
+  Serial.println(") da duoc khoi tao.");
 
   digitalWrite(MOTOR_PIN, LOW);
   isMotorOn = false;
@@ -451,6 +481,9 @@ void setup() {
   client.setCallback(callback);
   Serial.println("MQTT da duoc thiet lap.");
 
+  // Đợi thêm một chút để đảm bảo hệ thống ổn định khi dùng nguồn ngoài
+  delay(500);
+  
   Serial.println("Bat dau ket noi WiFi...");
   connectWiFi();
 
@@ -472,6 +505,7 @@ void setup() {
 // LOOP - CHẠY LIÊN TỤC
 // ============================================
 void loop() {
+  
   unsigned long currentTime_ms = millis();
 
   // 1. QUẢN LÝ KẾT NỐI WIFI
